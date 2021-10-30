@@ -1,0 +1,48 @@
+---
+- name: Create k8s-cluster
+  hosts: all
+  vars:
+    kubeadm_config: "{{ lookup('file', 'configs/kubeadm-config.yaml') }}"
+    calico_config: "{{ lookup('file', 'configs/calico-config.yaml') }}"
+  tasks:
+    - name: Create master
+      run_once: true
+      ansible.builtin.shell: echo '{{ kubeadm_config }}' | awk '{gsub("MASTER-IP", "{{ ansible_host }}")}1' | tee debug | kubeadm init --config /dev/stdin
+      register: kubeadm
+      when: inventory_hostname in groups["master"]
+      tags: master
+    - ansible.builtin.debug: var=kubeadm.stdout_lines
+      tags: master
+
+    - name: Deploy CNI - Calico
+      run_once: true
+      ansible.builtin.shell: |
+        export KUBECONFIG=/etc/kubernetes/admin.conf
+        kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.26.0/manifests/tigera-operator.yaml
+        echo '{{ calico_config }}' | kubectl create -f -
+      when: inventory_hostname in groups["master"]
+      tags: cni
+
+    - name: Get config to join new control plane
+      run_once: true
+      ansible.builtin.shell: echo $(kubeadm token create --print-join-command) --control-plane --certificate-key $(kubeadm init phase upload-certs --upload-certs | grep -vw -e certificate -e Namespace)
+      register: join_control_plane_cmd
+      when: inventory_hostname in groups["master"]
+      tags: control_plane
+
+    - name: Join control planes
+      ansible.builtin.shell: "{{ join_control_plane_cmd.stdout_lines[0] }}"
+      when: inventory_hostname in groups["control_planes"]
+      tags: control_plane
+
+    - name: Get config to join new worker
+      run_once: true
+      ansible.builtin.shell: kubeadm token create --print-join-command
+      register: join_worker_cmd
+      when: inventory_hostname in groups["master"]
+      tags: worker
+
+    - name: Join worker
+      ansible.builtin.shell: "{{ join_worker_cmd.stdout_lines[0] }}"
+      when: inventory_hostname in groups["worker"]
+      tags: worker
