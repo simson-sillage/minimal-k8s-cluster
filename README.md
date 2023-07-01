@@ -10,7 +10,7 @@ Copy the IPs of your servers into the hosts/inventory file. You need at least on
 
 Your inventory might look like this:
 
-```toml
+```ini
 [master]
 192.168.2.1
 
