@@ -46,7 +46,7 @@ ansible-playbook -i hosts -u root create-k8s-cluster.yaml
 
 This playbook is **NOT** idempotent. Don't run it twice.
 
-If everything worked out, you can ssh into you `master`-node and run:
+If everything worked out, you can ssh into the `master`-node and run:
 
 ```sh
 export KUBECONFIG=/etc/kubernetes/admin.conf
